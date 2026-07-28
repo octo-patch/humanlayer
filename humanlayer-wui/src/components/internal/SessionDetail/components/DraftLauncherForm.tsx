@@ -90,11 +90,14 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [proxyModelOverride, setProxyModelOverride] = useState<string | null>(
     session?.proxyModelOverride ?? null,
   )
-  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter'>(
+  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter' | 'minimax'>(
     session?.proxyBaseUrl
       ? session?.proxyBaseUrl?.includes('baseten.co')
         ? 'baseten'
-        : 'openrouter'
+        : session?.proxyBaseUrl?.includes('minimax.io') ||
+            session?.proxyBaseUrl?.includes('minimaxi.com')
+          ? 'minimax'
+          : 'openrouter'
       : 'anthropic',
   )
 
@@ -398,7 +401,7 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       proxyEnabled: boolean
       proxyBaseUrl?: string
       proxyModelOverride?: string
-      provider: 'anthropic' | 'openrouter' | 'baseten'
+      provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
     }) => {
       // Update local state with new configuration
       setModel(config.model || '')
