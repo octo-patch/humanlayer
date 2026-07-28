@@ -18,11 +18,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collap
 interface SessionConfig {
   title?: string
   workingDir: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   maxTurns?: number
   openRouterApiKey?: string
   basetenApiKey?: string
+  minimaxApiKey?: string
   additionalDirectories?: string[]
 }
 
@@ -61,9 +62,13 @@ export default function CommandInput({
     }
   }, [])
 
-  // Check config status when provider changes to OpenRouter or Baseten
+  // Check config status when provider changes to OpenRouter, Baseten, or MiniMax
   useEffect(() => {
-    if (config.provider === 'openrouter' || config.provider === 'baseten') {
+    if (
+      config.provider === 'openrouter' ||
+      config.provider === 'baseten' ||
+      config.provider === 'minimax'
+    ) {
       setIsCheckingConfig(true)
       daemonClient
         .getConfigStatus()
@@ -146,7 +151,7 @@ export default function CommandInput({
             <Select
               value={config.provider || 'anthropic'}
               onValueChange={value => {
-                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten'
+                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
 
                 // Get the saved model for this provider
                 let savedModel: string | undefined
@@ -156,6 +161,8 @@ export default function CommandInput({
                   savedModel = localStorage.getItem('humanlayer-openrouter-model') || undefined
                 } else if (newProvider === 'baseten') {
                   savedModel = localStorage.getItem('humanlayer-baseten-model') || undefined
+                } else if (newProvider === 'minimax') {
+                  savedModel = localStorage.getItem('humanlayer-minimax-model') || undefined
                 }
 
                 updateConfig({
@@ -172,6 +179,7 @@ export default function CommandInput({
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
                 <SelectItem value="baseten">Baseten</SelectItem>
+                <SelectItem value="minimax">MiniMax</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -198,6 +206,20 @@ export default function CommandInput({
                 placeholder="e.g., deepseek-ai/DeepSeek-V3.1"
                 disabled={isLoading}
               />
+            ) : config.provider === 'minimax' ? (
+              // Dropdown for MiniMax models
+              <Select
+                value={config.model || 'MiniMax-M3'}
+                onValueChange={value => updateConfig({ model: value || undefined })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="MiniMax-M3" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MiniMax-M3">MiniMax-M3</SelectItem>
+                  <SelectItem value="MiniMax-M2.7">MiniMax-M2.7</SelectItem>
+                </SelectContent>
+              </Select>
             ) : (
               // Dropdown for Anthropic models
               <Select
@@ -258,6 +280,19 @@ export default function CommandInput({
           isCheckingConfig={isCheckingConfig}
           placeholder=""
           onApiKeyChange={value => updateConfig({ basetenApiKey: value })}
+        />
+      )}
+
+      {/* MiniMax API Key field - only shown when MiniMax is selected */}
+      {config.provider === 'minimax' && (
+        <ProviderApiKeyField
+          provider="minimax"
+          displayName="MiniMax"
+          apiKey={config.minimaxApiKey}
+          isConfigured={configStatus?.minimax?.api_key_configured}
+          isCheckingConfig={isCheckingConfig}
+          placeholder=""
+          onApiKeyChange={value => updateConfig({ minimaxApiKey: value })}
         />
       )}
 

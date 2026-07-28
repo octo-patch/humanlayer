@@ -30,7 +30,7 @@ interface ModelSelectorProps {
     proxyEnabled: boolean
     proxyBaseUrl?: string
     proxyModelOverride?: string
-    provider: 'anthropic' | 'openrouter' | 'baseten'
+    provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   }) => void
   className?: string
   open?: boolean
@@ -50,12 +50,17 @@ function ModelSelectorContent({
 
   // Parse provider and model from current session
   const getProviderAndModel = () => {
-    // Check if using proxy (OpenRouter or Baseten)
+    // Check if using proxy (OpenRouter, Baseten, or MiniMax)
     if (session.proxyEnabled && session.proxyModelOverride) {
       // Determine provider based on proxy base URL
       if (session.proxyBaseUrl && session.proxyBaseUrl.includes('baseten.co')) {
         return {
           provider: 'baseten' as const,
+          model: session.proxyModelOverride,
+        }
+      } else if (session.proxyBaseUrl && session.proxyBaseUrl.includes('minimax')) {
+        return {
+          provider: 'minimax' as const,
           model: session.proxyModelOverride,
         }
       } else {
@@ -74,11 +79,19 @@ function ModelSelectorContent({
   }
 
   const initial = getProviderAndModel()
-  const [provider, setProvider] = useState<'anthropic' | 'openrouter' | 'baseten'>(initial.provider)
+  const [provider, setProvider] = useState<'anthropic' | 'openrouter' | 'baseten' | 'minimax'>(
+    initial.provider,
+  )
   const [model, setModel] = useState(
     initial.provider === 'anthropic' ? initial.model || 'default' : 'default',
   )
-  const [customModel, setCustomModel] = useState(initial.provider === 'openrouter' ? initial.model : '')
+  const [customModel, setCustomModel] = useState(
+    initial.provider === 'openrouter'
+      ? initial.model
+      : initial.provider === 'minimax'
+        ? initial.model
+        : '',
+  )
   const [isUpdating, setIsUpdating] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null)
@@ -88,6 +101,8 @@ function ModelSelectorContent({
     // Load saved API key from localStorage based on initial provider
     if (initial.provider === 'baseten') {
       return localStorage.getItem('humanlayer-baseten-api-key') || ''
+    } else if (initial.provider === 'minimax') {
+      return localStorage.getItem('humanlayer-minimax-api-key') || ''
     }
     return localStorage.getItem('humanlayer-openrouter-api-key') || ''
   })
@@ -113,14 +128,16 @@ function ModelSelectorContent({
     // Update API key when provider changes
     if (current.provider === 'baseten') {
       setApiKey(localStorage.getItem('humanlayer-baseten-api-key') || '')
+    } else if (current.provider === 'minimax') {
+      setApiKey(localStorage.getItem('humanlayer-minimax-api-key') || '')
     } else if (current.provider === 'openrouter') {
       setApiKey(localStorage.getItem('humanlayer-openrouter-api-key') || '')
     }
   }, [session.model, session.proxyEnabled, session.proxyModelOverride, session.proxyBaseUrl])
 
-  // Check config status when provider changes to OpenRouter or Baseten
+  // Check config status when provider changes to OpenRouter, Baseten, or MiniMax
   useEffect(() => {
-    if (provider === 'openrouter' || provider === 'baseten') {
+    if (provider === 'openrouter' || provider === 'baseten' || provider === 'minimax') {
       setIsCheckingConfig(true)
       daemonClient
         .getConfigStatus()
@@ -133,7 +150,7 @@ function ModelSelectorContent({
     }
   }, [provider])
 
-  const handleProviderChange = (newProvider: 'anthropic' | 'openrouter' | 'baseten') => {
+  const handleProviderChange = (newProvider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax') => {
     setProvider(newProvider)
     setHasChanges(true)
 
@@ -149,6 +166,8 @@ function ModelSelectorContent({
     // Update API key when switching providers
     if (newProvider === 'baseten') {
       setApiKey(localStorage.getItem('humanlayer-baseten-api-key') || '')
+    } else if (newProvider === 'minimax') {
+      setApiKey(localStorage.getItem('humanlayer-minimax-api-key') || '')
     } else if (newProvider === 'openrouter') {
       setApiKey(localStorage.getItem('humanlayer-openrouter-api-key') || '')
     } else {
@@ -174,6 +193,21 @@ function ModelSelectorContent({
   const canApplyBaseten =
     provider !== 'baseten' || (configStatus?.baseten?.api_key_configured ?? false) || apiKey.length > 0
 
+  const canApplyMiniMax =
+    provider !== 'minimax' || (configStatus?.minimax?.api_key_configured ?? false) || apiKey.length > 0
+
+  const providerDisplayName =
+    provider === 'baseten' ? 'Baseten' : provider === 'minimax' ? 'MiniMax' : 'OpenRouter'
+
+  const canApplyForKey =
+    provider === 'openrouter'
+      ? canApplyOpenRouter
+      : provider === 'baseten'
+        ? canApplyBaseten
+        : provider === 'minimax'
+          ? canApplyMiniMax
+          : true
+
   const handleApply = async () => {
     if ((provider === 'openrouter' || provider === 'baseten') && !customModel.trim()) {
       toast.error(`Model name is required for ${provider === 'baseten' ? 'Baseten' : 'OpenRouter'}`)
@@ -187,6 +221,11 @@ function ModelSelectorContent({
 
     if (!canApplyBaseten) {
       toast.error('Baseten API key is required')
+      return
+    }
+
+    if (!canApplyMiniMax) {
+      toast.error('MiniMax API key is required')
       return
     }
 
@@ -229,6 +268,16 @@ function ModelSelectorContent({
           proxyApiKey: apiKey || undefined,
         }
         modelValue = '' // Clear Anthropic model when using proxy
+      } else if (provider === 'minimax') {
+        // For MiniMax, set proxy configuration
+        proxyConfig = {
+          proxyEnabled: true,
+          proxyBaseUrl: 'https://api.minimax.io/v1',
+          proxyModelOverride: customModel || 'MiniMax-M3',
+          // Include API key if user provided one, otherwise backend will use env var
+          proxyApiKey: apiKey || undefined,
+        }
+        modelValue = '' // Clear Anthropic model when using proxy
       }
 
       // Update session with model and proxy configuration (only if session exists)
@@ -244,6 +293,8 @@ function ModelSelectorContent({
         localStorage.setItem('humanlayer-openrouter-api-key', apiKey)
       } else if (apiKey && provider === 'baseten') {
         localStorage.setItem('humanlayer-baseten-api-key', apiKey)
+      } else if (apiKey && provider === 'minimax') {
+        localStorage.setItem('humanlayer-minimax-api-key', apiKey)
       }
 
       // Notify parent component with full configuration
@@ -306,6 +357,7 @@ function ModelSelectorContent({
         !isUpdating &&
         (provider !== 'openrouter' || canApplyOpenRouter) &&
         (provider !== 'baseten' || canApplyBaseten) &&
+        (provider !== 'minimax' || canApplyMiniMax) &&
         (provider === 'anthropic' || customModel.trim())
       ) {
         handleApply()
@@ -336,7 +388,7 @@ function ModelSelectorContent({
             <Select
               value={provider}
               onValueChange={value =>
-                handleProviderChange(value as 'anthropic' | 'openrouter' | 'baseten')
+                handleProviderChange(value as 'anthropic' | 'openrouter' | 'baseten' | 'minimax')
               }
               disabled={isUpdating}
             >
@@ -347,6 +399,7 @@ function ModelSelectorContent({
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
                 <SelectItem value="baseten">Baseten</SelectItem>
+                <SelectItem value="minimax">MiniMax</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -387,6 +440,20 @@ function ModelSelectorContent({
               disabled={isUpdating}
               className="w-full"
             />
+          ) : provider === 'minimax' ? (
+            <Select
+              value={customModel || 'MiniMax-M3'}
+              onValueChange={handleCustomModelChange}
+              disabled={isUpdating}
+            >
+              <SelectTrigger id="model" className="w-full">
+                <SelectValue placeholder="MiniMax-M3" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MiniMax-M3">MiniMax-M3</SelectItem>
+                <SelectItem value="MiniMax-M2.7">MiniMax-M2.7</SelectItem>
+              </SelectContent>
+            </Select>
           ) : (
             <Select value={model || 'default'} onValueChange={handleModelChange} disabled={isUpdating}>
               <SelectTrigger id="model" className="w-full">
@@ -409,31 +476,25 @@ function ModelSelectorContent({
           </div>
         )}
 
-        {/* API Key Status for OpenRouter and Baseten */}
-        {(provider === 'openrouter' || provider === 'baseten') && (
+        {/* API Key Status for OpenRouter, Baseten, and MiniMax */}
+        {(provider === 'openrouter' || provider === 'baseten' || provider === 'minimax') && (
           <div className="space-y-2">
             {!showApiKeyInput ? (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {isCheckingConfig ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  ) : (provider === 'openrouter' ? canApplyOpenRouter : canApplyBaseten) ? (
+                  ) : canApplyForKey ? (
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   ) : (
                     <AlertCircle className="h-4 w-4 text-destructive" />
                   )}
-                  <span
-                    className={
-                      (provider === 'openrouter' ? canApplyOpenRouter : canApplyBaseten)
-                        ? 'text-muted-foreground'
-                        : 'text-destructive'
-                    }
-                  >
+                  <span className={canApplyForKey ? 'text-muted-foreground' : 'text-destructive'}>
                     {isCheckingConfig
-                      ? `Checking ${provider === 'baseten' ? 'Baseten' : 'OpenRouter'} configuration...`
-                      : (provider === 'openrouter' ? canApplyOpenRouter : canApplyBaseten)
-                        ? `${provider === 'baseten' ? 'Baseten' : 'OpenRouter'} API key is configured`
-                        : `${provider === 'baseten' ? 'Baseten' : 'OpenRouter'} API key required`}
+                      ? `Checking ${providerDisplayName} configuration...`
+                      : canApplyForKey
+                        ? `${providerDisplayName} API key is configured`
+                        : `${providerDisplayName} API key required`}
                   </span>
                 </div>
                 <Button
@@ -447,9 +508,7 @@ function ModelSelectorContent({
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="api-key">
-                  {provider === 'baseten' ? 'Baseten' : 'OpenRouter'} API Key
-                </Label>
+                <Label htmlFor="api-key">{providerDisplayName} API Key</Label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Input
@@ -460,7 +519,7 @@ function ModelSelectorContent({
                         setApiKey(e.target.value)
                         setHasChanges(true)
                       }}
-                      placeholder={provider === 'baseten' ? 'Enter Baseten API key...' : 'sk-or-...'}
+                      placeholder={`Enter ${providerDisplayName} API key...`}
                       className="h-8 pr-10"
                     />
                     {apiKey && (
@@ -523,6 +582,7 @@ function ModelSelectorContent({
               isUpdating ||
               (provider === 'openrouter' && !canApplyOpenRouter) ||
               (provider === 'baseten' && !canApplyBaseten) ||
+              (provider === 'minimax' && !canApplyMiniMax) ||
               ((provider === 'openrouter' || provider === 'baseten') && !customModel.trim())
             }
             size="sm"

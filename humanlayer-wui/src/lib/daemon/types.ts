@@ -34,7 +34,7 @@ export type HealthCheckResponse = HealthResponse
 export interface LaunchSessionParams {
   query: string
   title?: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   workingDir?: string
   mcpConfig?: any
@@ -43,6 +43,7 @@ export interface LaunchSessionParams {
   autoAcceptEdits?: boolean
   dangerouslySkipPermissions?: boolean
   proxyApiKey?: string
+  minimaxApiKey?: string
   additionalDirectories?: string[]
   draft?: boolean // Add draft parameter
   // Add any WUI-specific extensions if needed
@@ -204,7 +205,7 @@ export enum ViewMode {
 export interface LaunchSessionRequest {
   query: string
   title?: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   mcp_config?: any
   permission_prompt_tool?: string
@@ -456,6 +457,9 @@ export interface ConfigStatus {
     api_key_configured: boolean
   }
   baseten: {
+    api_key_configured: boolean
+  }
+  minimax: {
     api_key_configured: boolean
   }
 }

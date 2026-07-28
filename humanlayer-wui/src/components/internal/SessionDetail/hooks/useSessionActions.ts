@@ -136,7 +136,9 @@ export function useSessionActions({
         provider: session.proxyEnabled
           ? session.proxyBaseUrl?.includes('baseten')
             ? 'baseten'
-            : 'openrouter'
+            : session.proxyBaseUrl?.includes('minimax')
+              ? 'minimax'
+              : 'openrouter'
           : 'anthropic',
       })
 
