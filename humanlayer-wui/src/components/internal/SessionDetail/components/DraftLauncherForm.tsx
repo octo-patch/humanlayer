@@ -90,11 +90,13 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [proxyModelOverride, setProxyModelOverride] = useState<string | null>(
     session?.proxyModelOverride ?? null,
   )
-  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter'>(
+  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter' | 'minimax'>(
     session?.proxyBaseUrl
       ? session?.proxyBaseUrl?.includes('baseten.co')
         ? 'baseten'
-        : 'openrouter'
+        : session?.proxyBaseUrl?.includes('minimax.io') || session?.proxyBaseUrl?.includes('minimaxi.com')
+          ? 'minimax'
+          : 'openrouter'
       : 'anthropic',
   )
 
@@ -175,6 +177,12 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setProvider('baseten')
         setProxyEnabled(true)
         setProxyBaseUrl(lastUsedProxyBaseUrl || 'https://inference.baseten.co/v1')
+        setProxyModelOverride(lastUsedProxyModel || '')
+      } else if (lastUsedProvider === 'minimax') {
+        setModel('')
+        setProvider('minimax')
+        setProxyEnabled(true)
+        setProxyBaseUrl(lastUsedProxyBaseUrl || 'https://api.minimax.io/v1')
         setProxyModelOverride(lastUsedProxyModel || '')
       }
     }
@@ -398,7 +406,7 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       proxyEnabled: boolean
       proxyBaseUrl?: string
       proxyModelOverride?: string
-      provider: 'anthropic' | 'openrouter' | 'baseten'
+      provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
     }) => {
       // Update local state with new configuration
       setModel(config.model || '')
@@ -423,6 +431,11 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setLastUsedModel('')
         setLastUsedProxyModel(config.proxyModelOverride || '')
         setLastUsedProxyBaseUrl('https://inference.baseten.co/v1')
+      } else if (config.provider === 'minimax') {
+        setLastUsedProvider('minimax')
+        setLastUsedModel('')
+        setLastUsedProxyModel(config.proxyModelOverride || '')
+        setLastUsedProxyBaseUrl('https://api.minimax.io/v1')
       }
 
       if (onSessionUpdated) {
@@ -489,6 +502,14 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           }
         }
 
+        // If using MiniMax, include the API key from localStorage
+        if (proxyEnabled && proxyBaseUrl && (proxyBaseUrl.includes('minimax.io') || proxyBaseUrl.includes('minimaxi.com'))) {
+          const minimaxApiKey = localStorage.getItem('humanlayer-minimax-api-key')
+          if (minimaxApiKey) {
+            updatePayload.proxyApiKey = minimaxApiKey
+          }
+        }
+
         // If using OpenRouter, include the API key from localStorage
         if (proxyEnabled && proxyBaseUrl && proxyBaseUrl.includes('openrouter.ai')) {
           const openrouterApiKey = localStorage.getItem('humanlayer-openrouter-api-key')
@@ -509,7 +530,9 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           provider: proxyEnabled
             ? proxyBaseUrl?.includes('baseten')
               ? 'baseten'
-              : 'openrouter'
+              : proxyBaseUrl?.includes('minimax.io') || proxyBaseUrl?.includes('minimaxi.com')
+                ? 'minimax'
+                : 'openrouter'
             : 'anthropic',
           from_draft: true,
         })
