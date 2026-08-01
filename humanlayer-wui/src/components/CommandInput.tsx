@@ -11,18 +11,27 @@ import { hasContent, isEmptyOrWhitespace } from '@/utils/validation'
 import { ProviderApiKeyField } from './ProviderApiKeyField'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { daemonClient } from '@/lib/daemon'
-import { ConfigStatus } from '@/lib/daemon/types'
+import { ConfigStatus, type ModelProvider } from '@/lib/daemon/types'
 import { useStore } from '@/AppStore'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
+import {
+  DEFAULT_MINIMAX_BASE_URL,
+  DEFAULT_MINIMAX_MODEL,
+  MINIMAX_ENDPOINTS,
+  MINIMAX_MODELS,
+  normalizeMiniMaxBaseUrl,
+} from '@/lib/minimax'
 
 interface SessionConfig {
   title?: string
   workingDir: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: ModelProvider
   model?: string
   maxTurns?: number
   openRouterApiKey?: string
   basetenApiKey?: string
+  miniMaxApiKey?: string
+  miniMaxBaseUrl?: string
   additionalDirectories?: string[]
 }
 
@@ -61,9 +70,13 @@ export default function CommandInput({
     }
   }, [])
 
-  // Check config status when provider changes to OpenRouter or Baseten
+  // Check config status when a proxy provider is selected
   useEffect(() => {
-    if (config.provider === 'openrouter' || config.provider === 'baseten') {
+    if (
+      config.provider === 'openrouter' ||
+      config.provider === 'baseten' ||
+      config.provider === 'minimax'
+    ) {
       setIsCheckingConfig(true)
       daemonClient
         .getConfigStatus()
@@ -146,7 +159,7 @@ export default function CommandInput({
             <Select
               value={config.provider || 'anthropic'}
               onValueChange={value => {
-                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten'
+                const newProvider = value as ModelProvider
 
                 // Get the saved model for this provider
                 let savedModel: string | undefined
@@ -156,11 +169,21 @@ export default function CommandInput({
                   savedModel = localStorage.getItem('humanlayer-openrouter-model') || undefined
                 } else if (newProvider === 'baseten') {
                   savedModel = localStorage.getItem('humanlayer-baseten-model') || undefined
+                } else if (newProvider === 'minimax') {
+                  savedModel = localStorage.getItem('humanlayer-minimax-model') || DEFAULT_MINIMAX_MODEL
                 }
 
                 updateConfig({
                   provider: newProvider,
                   model: savedModel,
+                  miniMaxBaseUrl:
+                    newProvider === 'minimax'
+                      ? normalizeMiniMaxBaseUrl(
+                          localStorage.getItem('humanlayer-minimax-base-url') ||
+                            config.miniMaxBaseUrl ||
+                            DEFAULT_MINIMAX_BASE_URL,
+                        )
+                      : config.miniMaxBaseUrl,
                   // Keep the API key persistent across provider changes
                 })
               }}
@@ -172,6 +195,7 @@ export default function CommandInput({
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
                 <SelectItem value="baseten">Baseten</SelectItem>
+                <SelectItem value="minimax">MiniMax</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -198,6 +222,22 @@ export default function CommandInput({
                 placeholder="e.g., deepseek-ai/DeepSeek-V3.1"
                 disabled={isLoading}
               />
+            ) : config.provider === 'minimax' ? (
+              <Select
+                value={config.model || DEFAULT_MINIMAX_MODEL}
+                onValueChange={value => updateConfig({ model: value })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MINIMAX_MODELS.map(model => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : (
               // Dropdown for Anthropic models
               <Select
@@ -235,6 +275,27 @@ export default function CommandInput({
         </div>
       )}
 
+      {config.provider === 'minimax' && (
+        <div className="space-y-2">
+          <Label>Endpoint</Label>
+          <Select
+            value={normalizeMiniMaxBaseUrl(config.miniMaxBaseUrl)}
+            onValueChange={value => updateConfig({ miniMaxBaseUrl: normalizeMiniMaxBaseUrl(value) })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MINIMAX_ENDPOINTS.map(endpoint => (
+                <SelectItem key={endpoint.region} value={endpoint.baseUrl}>
+                  {endpoint.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* OpenRouter API Key field - only shown when OpenRouter is selected */}
       {config.provider === 'openrouter' && (
         <ProviderApiKeyField
@@ -258,6 +319,17 @@ export default function CommandInput({
           isCheckingConfig={isCheckingConfig}
           placeholder=""
           onApiKeyChange={value => updateConfig({ basetenApiKey: value })}
+        />
+      )}
+
+      {config.provider === 'minimax' && (
+        <ProviderApiKeyField
+          provider="minimax"
+          displayName="MiniMax"
+          apiKey={config.miniMaxApiKey}
+          isConfigured={configStatus?.minimax?.api_key_configured}
+          isCheckingConfig={isCheckingConfig}
+          onApiKeyChange={value => updateConfig({ miniMaxApiKey: value })}
         />
       )}
 

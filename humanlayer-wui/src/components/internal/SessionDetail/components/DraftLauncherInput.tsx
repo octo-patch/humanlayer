@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { daemonClient } from '@/lib/daemon'
-import { type Session, SessionStatus } from '@/lib/daemon/types'
+import { type ModelProvider, type Session, SessionStatus } from '@/lib/daemon/types'
 import { logger } from '@/lib/logging'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
@@ -31,7 +31,7 @@ interface DraftLauncherInputProps {
     proxyEnabled: boolean
     proxyBaseUrl?: string
     proxyModelOverride?: string
-    provider: 'anthropic' | 'openrouter' | 'baseten'
+    provider: ModelProvider
   }) => void
   onToggleAutoAccept: () => void
   onToggleBypass: () => void

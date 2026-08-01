@@ -31,10 +31,12 @@ export type SessionSnapshot = FileSnapshotInfo // Components expect snake_case
 export type HealthCheckResponse = HealthResponse
 
 // Define client-specific types not in SDK
+export type ModelProvider = 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
+
 export interface LaunchSessionParams {
   query: string
   title?: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: ModelProvider
   model?: string
   workingDir?: string
   mcpConfig?: any
@@ -204,7 +206,7 @@ export enum ViewMode {
 export interface LaunchSessionRequest {
   query: string
   title?: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: ModelProvider
   model?: string
   mcp_config?: any
   permission_prompt_tool?: string
@@ -456,6 +458,9 @@ export interface ConfigStatus {
     api_key_configured: boolean
   }
   baseten: {
+    api_key_configured: boolean
+  }
+  minimax: {
     api_key_configured: boolean
   }
 }

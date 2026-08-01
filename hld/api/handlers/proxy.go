@@ -62,6 +62,21 @@ func (h *ProxyHandler) setAuthHeaders(c *gin.Context, req *http.Request, url str
 			return fmt.Errorf("BASETEN_API_KEY not configured")
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	} else if strings.Contains(url, "api.minimax.io") || strings.Contains(url, "api.minimaxi.com") {
+		apiKey := session.ProxyAPIKey
+		if apiKey == "" {
+			apiKey = os.Getenv("MINIMAX_API_KEY")
+		}
+		if apiKey == "" {
+			slog.Error("MINIMAX_API_KEY not configured",
+				"error", "MINIMAX_API_KEY not configured",
+				"session_id", session.ID,
+				"operation", "ProxyAnthropicRequest",
+			)
+			c.JSON(500, gin.H{"error": "MINIMAX_API_KEY not configured"})
+			return fmt.Errorf("MINIMAX_API_KEY not configured")
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 	} else if strings.Contains(url, "openrouter.ai") || session.ProxyEnabled {
 		// OpenRouter or general proxy - check OpenRouter-specific keys
 		apiKey := session.ProxyAPIKey

@@ -1,7 +1,7 @@
 import { KeyboardShortcut } from '@/components/HotkeyPanel'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Session, SessionStatus } from '@/lib/daemon/types'
+import { type ModelProvider, Session, SessionStatus } from '@/lib/daemon/types'
 import { getStatusTextClass } from '@/utils/component-utils'
 import { renderSessionStatus } from '@/utils/sessionStatus'
 import { Pencil } from 'lucide-react'
@@ -23,7 +23,7 @@ interface StatusBarProps {
     proxyEnabled: boolean
     proxyBaseUrl?: string
     proxyModelOverride?: string
-    provider: 'anthropic' | 'openrouter' | 'baseten'
+    provider: ModelProvider
   }) => void
   statusOverride?: {
     text: string | React.ReactNode
