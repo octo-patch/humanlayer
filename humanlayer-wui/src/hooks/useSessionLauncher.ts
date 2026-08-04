@@ -13,11 +13,12 @@ import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
 interface SessionConfig {
   title?: string
   workingDir: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   maxTurns?: number
   openRouterApiKey?: string
   basetenApiKey?: string
+  minimaxApiKey?: string
   additionalDirectories?: string[]
 }
 
@@ -51,29 +52,35 @@ export const LAST_WORKING_DIR_KEY = 'humanlayer-last-working-dir'
 const SESSION_LAUNCHER_QUERY_KEY = 'session-launcher-query'
 const OPENROUTER_API_KEY = 'humanlayer-openrouter-api-key'
 const BASETEN_API_KEY = 'humanlayer-baseten-api-key'
+const MINIMAX_API_KEY = 'humanlayer-minimax-api-key'
 const ADDITIONAL_DIRECTORIES_KEY = 'humanlayer-additional-directories'
 const PROVIDER_KEY = 'humanlayer-provider'
 const MODEL_KEY = 'humanlayer-model'
 const OPENROUTER_MODEL_KEY = 'humanlayer-openrouter-model'
 const BASETEN_MODEL_KEY = 'humanlayer-baseten-model'
+const MINIMAX_MODEL_KEY = 'humanlayer-minimax-model'
 
 // Helper function to get saved provider
-const getSavedProvider = (): 'anthropic' | 'openrouter' | 'baseten' => {
+const getSavedProvider = (): 'anthropic' | 'openrouter' | 'baseten' | 'minimax' => {
   const stored = localStorage.getItem(PROVIDER_KEY)
-  if (stored === 'openrouter' || stored === 'baseten') {
+  if (stored === 'openrouter' || stored === 'baseten' || stored === 'minimax') {
     return stored
   }
   return 'anthropic' // Default to Anthropic
 }
 
 // Helper function to get saved model based on provider
-const getSavedModel = (provider: 'anthropic' | 'openrouter' | 'baseten'): string | undefined => {
+const getSavedModel = (
+  provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax',
+): string | undefined => {
   if (provider === 'anthropic') {
     return localStorage.getItem(MODEL_KEY) || undefined
   } else if (provider === 'openrouter') {
     return localStorage.getItem(OPENROUTER_MODEL_KEY) || undefined
   } else if (provider === 'baseten') {
     return localStorage.getItem(BASETEN_MODEL_KEY) || undefined
+  } else if (provider === 'minimax') {
+    return localStorage.getItem(MINIMAX_MODEL_KEY) || undefined
   }
   return undefined
 }
@@ -84,6 +91,7 @@ export const clearSavedModelPreferences = (): void => {
   localStorage.removeItem(MODEL_KEY)
   localStorage.removeItem(OPENROUTER_MODEL_KEY)
   localStorage.removeItem(BASETEN_MODEL_KEY)
+  localStorage.removeItem(MINIMAX_MODEL_KEY)
 }
 
 // Export localStorage key helpers (used by other components)
@@ -109,6 +117,11 @@ const getSavedOpenRouterKey = (): string | undefined => {
 // Helper function to get saved Baseten API key
 const getSavedBasetenKey = (): string | undefined => {
   return localStorage.getItem(BASETEN_API_KEY) || undefined
+}
+
+// Helper function to get saved MiniMax API key
+const getSavedMinimaxKey = (): string | undefined => {
+  return localStorage.getItem(MINIMAX_API_KEY) || undefined
 }
 
 // Helper function to get saved additional directories
@@ -139,6 +152,7 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
     model: getSavedModel(getSavedProvider()),
     openRouterApiKey: getSavedOpenRouterKey(),
     basetenApiKey: getSavedBasetenKey(),
+    minimaxApiKey: getSavedMinimaxKey(),
     additionalDirectories: getSavedAdditionalDirectories(),
   },
   isLaunching: false,
@@ -163,6 +177,7 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
         model: getSavedModel(savedProvider),
         openRouterApiKey: getSavedOpenRouterKey(),
         basetenApiKey: getSavedBasetenKey(),
+        minimaxApiKey: getSavedMinimaxKey(),
         additionalDirectories: getSavedAdditionalDirectories(),
       },
       error: undefined,
@@ -194,7 +209,9 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
             ? OPENROUTER_MODEL_KEY
             : config.provider === 'baseten'
               ? BASETEN_MODEL_KEY
-              : null
+              : config.provider === 'minimax'
+                ? MINIMAX_MODEL_KEY
+                : null
 
       if (modelKey) {
         if (config.model) {
@@ -226,6 +243,17 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
     ) {
       // Remove from localStorage when cleared to avoid stale state
       localStorage.removeItem(BASETEN_API_KEY)
+    }
+    // Save or remove MiniMax API key from localStorage
+    if (config.minimaxApiKey) {
+      localStorage.setItem(MINIMAX_API_KEY, config.minimaxApiKey)
+    } else if (
+      config.minimaxApiKey === undefined ||
+      config.minimaxApiKey === null ||
+      config.minimaxApiKey === ''
+    ) {
+      // Remove from localStorage when cleared to avoid stale state
+      localStorage.removeItem(MINIMAX_API_KEY)
     }
     // Save or remove additional directories from localStorage
     if (config.additionalDirectories && config.additionalDirectories.length > 0) {
@@ -331,6 +359,15 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
               proxy_base_url: 'https://inference.baseten.co/v1',
               proxy_model_override: config.model || 'deepseek-ai/DeepSeek-V3.1',
               proxy_api_key: config.basetenApiKey,
+            }
+          : {}),
+        // Add MiniMax proxy configuration if provider is minimax
+        ...(config.provider === 'minimax' && config.minimaxApiKey
+          ? {
+              proxy_enabled: true,
+              proxy_base_url: 'https://api.minimax.io/v1',
+              proxy_model_override: config.model || 'MiniMax-M3',
+              proxy_api_key: config.minimaxApiKey,
             }
           : {}),
       }
