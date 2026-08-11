@@ -2,6 +2,7 @@ import { KeyboardShortcut } from '@/components/HotkeyPanel'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Session, SessionStatus } from '@/lib/daemon/types'
+import type { ModelProvider } from '@/lib/model-providers'
 import { getStatusTextClass } from '@/utils/component-utils'
 import { renderSessionStatus } from '@/utils/sessionStatus'
 import { Pencil } from 'lucide-react'
@@ -23,7 +24,7 @@ interface StatusBarProps {
     proxyEnabled: boolean
     proxyBaseUrl?: string
     proxyModelOverride?: string
-    provider: 'anthropic' | 'openrouter' | 'baseten'
+    provider: ModelProvider
   }) => void
   statusOverride?: {
     text: string | React.ReactNode
@@ -48,7 +49,7 @@ export function StatusBar({
   const statusText = statusOverride?.text || defaultStatusText
   const statusClassName = statusOverride?.className || getStatusTextClass(session.status)
 
-  // Show proxy model if using OpenRouter, otherwise show provided model
+  // Show the proxy model when configured, otherwise show the native model.
   const rawModelText =
     session.proxyEnabled && session.proxyModelOverride
       ? session.proxyModelOverride

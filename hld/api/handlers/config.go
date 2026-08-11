@@ -23,6 +23,9 @@ func (h *ConfigHandler) GetConfigStatus(c *gin.Context) {
 		"baseten": map[string]bool{
 			"api_key_configured": os.Getenv("BASETEN_API_KEY") != "",
 		},
+		"minimax": map[string]bool{
+			"api_key_configured": os.Getenv("MINIMAX_API_KEY") != "",
+		},
 	}
 	c.JSON(200, status)
 }

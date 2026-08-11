@@ -6,6 +6,7 @@ import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { daemonClient } from '@/lib/daemon'
 import { type Session, SessionStatus } from '@/lib/daemon/types'
 import { logger } from '@/lib/logging'
+import type { ModelProvider } from '@/lib/model-providers'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { Content } from '@tiptap/react'
@@ -31,7 +32,7 @@ interface DraftLauncherInputProps {
     proxyEnabled: boolean
     proxyBaseUrl?: string
     proxyModelOverride?: string
-    provider: 'anthropic' | 'openrouter' | 'baseten'
+    provider: ModelProvider
   }) => void
   onToggleAutoAccept: () => void
   onToggleBypass: () => void
