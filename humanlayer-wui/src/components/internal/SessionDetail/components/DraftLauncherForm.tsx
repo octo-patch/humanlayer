@@ -22,6 +22,12 @@ import { DangerouslySkipPermissionsDialog } from '../DangerouslySkipPermissionsD
 import { DiscardDraftDialog } from './DiscardDraftDialog'
 import { CreateDirectoryDialog } from './CreateDirectoryDialog'
 import { DraftLauncherInput } from './DraftLauncherInput'
+import {
+  MINIMAX_API_KEY_STORAGE_KEY,
+  MINIMAX_DEFAULT_BASE_URL,
+  MINIMAX_PROVIDER_ID,
+  isMiniMaxBaseUrl,
+} from '@/lib/providers/minimax'
 
 interface DraftLauncherFormProps {
   session: Session | null
@@ -90,11 +96,13 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [proxyModelOverride, setProxyModelOverride] = useState<string | null>(
     session?.proxyModelOverride ?? null,
   )
-  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter'>(
+  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter' | 'minimax'>(
     session?.proxyBaseUrl
       ? session?.proxyBaseUrl?.includes('baseten.co')
         ? 'baseten'
-        : 'openrouter'
+        : isMiniMaxBaseUrl(session?.proxyBaseUrl)
+          ? MINIMAX_PROVIDER_ID
+          : 'openrouter'
       : 'anthropic',
   )
 
@@ -175,6 +183,12 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setProvider('baseten')
         setProxyEnabled(true)
         setProxyBaseUrl(lastUsedProxyBaseUrl || 'https://inference.baseten.co/v1')
+        setProxyModelOverride(lastUsedProxyModel || '')
+      } else if (lastUsedProvider === MINIMAX_PROVIDER_ID) {
+        setModel('')
+        setProvider(MINIMAX_PROVIDER_ID)
+        setProxyEnabled(true)
+        setProxyBaseUrl(lastUsedProxyBaseUrl || MINIMAX_DEFAULT_BASE_URL)
         setProxyModelOverride(lastUsedProxyModel || '')
       }
     }
@@ -398,7 +412,7 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       proxyEnabled: boolean
       proxyBaseUrl?: string
       proxyModelOverride?: string
-      provider: 'anthropic' | 'openrouter' | 'baseten'
+      provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
     }) => {
       // Update local state with new configuration
       setModel(config.model || '')
@@ -423,6 +437,11 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setLastUsedModel('')
         setLastUsedProxyModel(config.proxyModelOverride || '')
         setLastUsedProxyBaseUrl('https://inference.baseten.co/v1')
+      } else if (config.provider === MINIMAX_PROVIDER_ID) {
+        setLastUsedProvider(MINIMAX_PROVIDER_ID)
+        setLastUsedModel('')
+        setLastUsedProxyModel(config.proxyModelOverride || '')
+        setLastUsedProxyBaseUrl(MINIMAX_DEFAULT_BASE_URL)
       }
 
       if (onSessionUpdated) {
@@ -489,6 +508,14 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           }
         }
 
+        // If using MiniMax, include the API key from localStorage
+        if (proxyEnabled && isMiniMaxBaseUrl(proxyBaseUrl)) {
+          const minimaxApiKey = localStorage.getItem(MINIMAX_API_KEY_STORAGE_KEY)
+          if (minimaxApiKey) {
+            updatePayload.proxyApiKey = minimaxApiKey
+          }
+        }
+
         // If using OpenRouter, include the API key from localStorage
         if (proxyEnabled && proxyBaseUrl && proxyBaseUrl.includes('openrouter.ai')) {
           const openrouterApiKey = localStorage.getItem('humanlayer-openrouter-api-key')
@@ -509,7 +536,9 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           provider: proxyEnabled
             ? proxyBaseUrl?.includes('baseten')
               ? 'baseten'
-              : 'openrouter'
+              : isMiniMaxBaseUrl(proxyBaseUrl)
+                ? MINIMAX_PROVIDER_ID
+                : 'openrouter'
             : 'anthropic',
           from_draft: true,
         })

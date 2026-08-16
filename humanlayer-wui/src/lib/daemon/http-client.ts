@@ -27,6 +27,7 @@ import type {
   ConfigStatus,
 } from './types'
 import { transformSDKSession } from './types'
+import { MINIMAX_DEFAULT_BASE_URL, MINIMAX_DEFAULT_MODEL_ID } from '@/lib/providers/minimax'
 
 export class HTTPDaemonClient implements IDaemonClient {
   private client?: HLDClient
@@ -185,7 +186,7 @@ export class HTTPDaemonClient implements IDaemonClient {
         model = 'haiku'
       }
     }
-    // For OpenRouter and Baseten, pass model string as-is via proxyModelOverride
+    // For OpenRouter, Baseten and MiniMax, pass model string as-is via proxyModelOverride
 
     const additionalDirs =
       'additionalDirectories' in params
@@ -199,7 +200,7 @@ export class HTTPDaemonClient implements IDaemonClient {
       workingDir:
         'workingDir' in params ? params.workingDir : (params as LaunchSessionRequest).working_dir,
       model:
-        provider === 'openrouter' || provider === 'baseten'
+        provider === 'openrouter' || provider === 'baseten' || provider === 'minimax'
           ? undefined
           : (model as 'opus' | 'sonnet' | 'haiku' | undefined),
       mcpConfig: 'mcpConfig' in params ? params.mcpConfig : (params as LaunchSessionRequest).mcp_config,
@@ -238,6 +239,17 @@ export class HTTPDaemonClient implements IDaemonClient {
           'proxy_model_override' in params
             ? String(params.proxy_model_override).replace(/['"]/g, '')
             : String(model || 'deepseek-ai/DeepSeek-V3.1').replace(/['"]/g, ''),
+        proxyApiKey:
+          'proxyApiKey' in params ? params.proxyApiKey : (params as LaunchSessionRequest).proxy_api_key,
+      }),
+      // Pass proxy configuration directly if using MiniMax
+      ...(provider === 'minimax' && {
+        proxyEnabled: 'proxy_enabled' in params ? params.proxy_enabled : true,
+        proxyBaseUrl: 'proxy_base_url' in params ? params.proxy_base_url : MINIMAX_DEFAULT_BASE_URL,
+        proxyModelOverride:
+          'proxy_model_override' in params
+            ? String(params.proxy_model_override).replace(/['"]/g, '')
+            : String(model || MINIMAX_DEFAULT_MODEL_ID).replace(/['"]/g, ''),
         proxyApiKey:
           'proxyApiKey' in params ? params.proxyApiKey : (params as LaunchSessionRequest).proxy_api_key,
       }),

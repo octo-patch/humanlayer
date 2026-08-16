@@ -14,15 +14,23 @@ import { daemonClient } from '@/lib/daemon'
 import { ConfigStatus } from '@/lib/daemon/types'
 import { useStore } from '@/AppStore'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
+import {
+  MINIMAX_DEFAULT_MODEL_ID,
+  MINIMAX_DISPLAY_NAME,
+  MINIMAX_MODEL_IDS,
+  MINIMAX_MODEL_STORAGE_KEY,
+  MINIMAX_PROVIDER_ID,
+} from '@/lib/providers/minimax'
 
 interface SessionConfig {
   title?: string
   workingDir: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   maxTurns?: number
   openRouterApiKey?: string
   basetenApiKey?: string
+  minimaxApiKey?: string
   additionalDirectories?: string[]
 }
 
@@ -61,9 +69,13 @@ export default function CommandInput({
     }
   }, [])
 
-  // Check config status when provider changes to OpenRouter or Baseten
+  // Check config status when provider changes to OpenRouter, Baseten or MiniMax
   useEffect(() => {
-    if (config.provider === 'openrouter' || config.provider === 'baseten') {
+    if (
+      config.provider === 'openrouter' ||
+      config.provider === 'baseten' ||
+      config.provider === 'minimax'
+    ) {
       setIsCheckingConfig(true)
       daemonClient
         .getConfigStatus()
@@ -146,7 +158,7 @@ export default function CommandInput({
             <Select
               value={config.provider || 'anthropic'}
               onValueChange={value => {
-                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten'
+                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
 
                 // Get the saved model for this provider
                 let savedModel: string | undefined
@@ -156,6 +168,8 @@ export default function CommandInput({
                   savedModel = localStorage.getItem('humanlayer-openrouter-model') || undefined
                 } else if (newProvider === 'baseten') {
                   savedModel = localStorage.getItem('humanlayer-baseten-model') || undefined
+                } else if (newProvider === MINIMAX_PROVIDER_ID) {
+                  savedModel = localStorage.getItem(MINIMAX_MODEL_STORAGE_KEY) || undefined
                 }
 
                 updateConfig({
@@ -172,6 +186,7 @@ export default function CommandInput({
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
                 <SelectItem value="baseten">Baseten</SelectItem>
+                <SelectItem value={MINIMAX_PROVIDER_ID}>{MINIMAX_DISPLAY_NAME}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -198,6 +213,23 @@ export default function CommandInput({
                 placeholder="e.g., deepseek-ai/DeepSeek-V3.1"
                 disabled={isLoading}
               />
+            ) : config.provider === MINIMAX_PROVIDER_ID ? (
+              // Dropdown for MiniMax models
+              <Select
+                value={config.model || ''}
+                onValueChange={value => updateConfig({ model: value || undefined })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={MINIMAX_DEFAULT_MODEL_ID} />
+                </SelectTrigger>
+                <SelectContent>
+                  {MINIMAX_MODEL_IDS.map(modelId => (
+                    <SelectItem key={modelId} value={modelId}>
+                      {modelId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : (
               // Dropdown for Anthropic models
               <Select
@@ -258,6 +290,19 @@ export default function CommandInput({
           isCheckingConfig={isCheckingConfig}
           placeholder=""
           onApiKeyChange={value => updateConfig({ basetenApiKey: value })}
+        />
+      )}
+
+      {/* MiniMax API Key field - only shown when MiniMax is selected */}
+      {config.provider === MINIMAX_PROVIDER_ID && (
+        <ProviderApiKeyField
+          provider={MINIMAX_PROVIDER_ID}
+          displayName={MINIMAX_DISPLAY_NAME}
+          apiKey={config.minimaxApiKey}
+          isConfigured={configStatus?.minimax?.api_key_configured}
+          isCheckingConfig={isCheckingConfig}
+          placeholder=""
+          onApiKeyChange={value => updateConfig({ minimaxApiKey: value })}
         />
       )}
 

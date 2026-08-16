@@ -168,6 +168,57 @@ func TestTransformAnthropicToOpenAI_ToolChoice(t *testing.T) {
 	}
 }
 
+func TestTransformAnthropicToOpenAI_MiniMaxDefaultModel(t *testing.T) {
+	handler := &ProxyHandler{}
+
+	anthropicReq := map[string]interface{}{
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role":    "user",
+				"content": "Hello",
+			},
+		},
+	}
+
+	for _, baseURL := range []string{"https://api.minimax.io/v1", "https://api.minimaxi.com/v1"} {
+		t.Run(baseURL, func(t *testing.T) {
+			assert.True(t, isMiniMaxURL(baseURL), "base URL should be recognised as MiniMax")
+
+			session := map[string]interface{}{
+				"id":             "test-session",
+				"proxy_enabled":  true,
+				"proxy_base_url": baseURL,
+			}
+
+			result := handler.transformAnthropicToOpenAI(anthropicReq, session)
+			assert.Equal(t, MiniMaxDefaultModel, result["model"])
+		})
+	}
+}
+
+func TestTransformAnthropicToOpenAI_MiniMaxModelOverride(t *testing.T) {
+	handler := &ProxyHandler{}
+
+	anthropicReq := map[string]interface{}{
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role":    "user",
+				"content": "Hello",
+			},
+		},
+	}
+
+	session := map[string]interface{}{
+		"id":                   "test-session",
+		"proxy_enabled":        true,
+		"proxy_base_url":       "https://api.minimax.io/v1",
+		"proxy_model_override": "MiniMax-M2.7",
+	}
+
+	result := handler.transformAnthropicToOpenAI(anthropicReq, session)
+	assert.Equal(t, "MiniMax-M2.7", result["model"])
+}
+
 func TestTransformAnthropicToOpenAI_RemoveURIFormat(t *testing.T) {
 	handler := &ProxyHandler{}
 

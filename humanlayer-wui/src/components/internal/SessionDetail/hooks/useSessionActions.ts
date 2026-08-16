@@ -11,6 +11,7 @@ import { checkUnsupportedCommand } from '@/constants/unsupportedCommands'
 import { toast } from 'sonner'
 import { usePostHogTracking } from '@/hooks/usePostHogTracking'
 import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
+import { MINIMAX_PROVIDER_ID, isMiniMaxBaseUrl } from '@/lib/providers/minimax'
 
 interface UseSessionActionsProps {
   session: Session
@@ -136,7 +137,9 @@ export function useSessionActions({
         provider: session.proxyEnabled
           ? session.proxyBaseUrl?.includes('baseten')
             ? 'baseten'
-            : 'openrouter'
+            : isMiniMaxBaseUrl(session.proxyBaseUrl)
+              ? MINIMAX_PROVIDER_ID
+              : 'openrouter'
           : 'anthropic',
       })
 
