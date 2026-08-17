@@ -341,3 +341,82 @@ func TestTransformOpenAIToAnthropic_TokenExtraction(t *testing.T) {
 		})
 	}
 }
+
+func TestTransformAnthropicToOpenAI_DefaultModelPerProvider(t *testing.T) {
+	handler := &ProxyHandler{}
+
+	anthropicReq := map[string]interface{}{
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role":    "user",
+				"content": "hello",
+			},
+		},
+	}
+
+	tests := []struct {
+		name          string
+		proxyBaseURL  string
+		expectedModel string
+	}{
+		{
+			name:          "minimax global endpoint",
+			proxyBaseURL:  "https://api.minimax.io/v1",
+			expectedModel: miniMaxDefaultModel,
+		},
+		{
+			name:          "minimax regional endpoint",
+			proxyBaseURL:  "https://api.minimaxi.com/v1",
+			expectedModel: miniMaxDefaultModel,
+		},
+		{
+			name:          "baseten endpoint is unchanged",
+			proxyBaseURL:  "https://inference.baseten.co/v1",
+			expectedModel: "deepseek-ai/DeepSeek-V3.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := map[string]interface{}{
+				"id":             "test-session",
+				"proxy_base_url": tt.proxyBaseURL,
+			}
+
+			result := handler.transformAnthropicToOpenAI(anthropicReq, session)
+
+			assert.Equal(t, tt.expectedModel, result["model"])
+		})
+	}
+}
+
+func TestTransformAnthropicToOpenAI_ProxyModelOverrideWins(t *testing.T) {
+	handler := &ProxyHandler{}
+
+	anthropicReq := map[string]interface{}{
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role":    "user",
+				"content": "hello",
+			},
+		},
+	}
+
+	session := map[string]interface{}{
+		"id":                   "test-session",
+		"proxy_base_url":       "https://api.minimax.io/v1",
+		"proxy_model_override": "MiniMax-M2.7",
+	}
+
+	result := handler.transformAnthropicToOpenAI(anthropicReq, session)
+
+	assert.Equal(t, "MiniMax-M2.7", result["model"])
+}
+
+func TestIsMiniMaxURL(t *testing.T) {
+	assert.True(t, isMiniMaxURL("https://api.minimax.io/v1/chat/completions"))
+	assert.True(t, isMiniMaxURL("https://api.minimaxi.com/v1/chat/completions"))
+	assert.False(t, isMiniMaxURL("https://openrouter.ai/api/v1/chat/completions"))
+	assert.False(t, isMiniMaxURL("https://inference.baseten.co/v1/chat/completions"))
+	assert.False(t, isMiniMaxURL(""))
+}

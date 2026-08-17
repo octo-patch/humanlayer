@@ -17,6 +17,27 @@ import (
 	"github.com/humanlayer/humanlayer/hld/store"
 )
 
+// MiniMax exposes OpenAI-compatible endpoints per region; requests are authenticated with a
+// bearer token read from the session or from the daemon environment.
+const (
+	miniMaxGlobalBaseURL = "https://api.minimax.io/v1"
+	miniMaxAPIKeyEnvVar  = "MINIMAX_API_KEY"
+	miniMaxDefaultModel  = "MiniMax-M3"
+)
+
+// miniMaxHosts lists the regional API hosts recognized as MiniMax.
+var miniMaxHosts = []string{"api.minimax.io", "api.minimaxi.com"}
+
+// isMiniMaxURL reports whether a proxy URL targets one of the MiniMax regional endpoints.
+func isMiniMaxURL(url string) bool {
+	for _, host := range miniMaxHosts {
+		if strings.Contains(url, host) {
+			return true
+		}
+	}
+	return false
+}
+
 type ProxyHandler struct {
 	sessionManager session.SessionManager
 	store          store.ConversationStore
@@ -60,6 +81,22 @@ func (h *ProxyHandler) setAuthHeaders(c *gin.Context, req *http.Request, url str
 			)
 			c.JSON(500, gin.H{"error": "BASETEN_API_KEY not configured"})
 			return fmt.Errorf("BASETEN_API_KEY not configured")
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	} else if isMiniMaxURL(url) {
+		// MiniMax uses Bearer token - check MiniMax-specific keys first
+		apiKey := session.ProxyAPIKey
+		if apiKey == "" {
+			apiKey = os.Getenv(miniMaxAPIKeyEnvVar)
+		}
+		if apiKey == "" {
+			slog.Error("MINIMAX_API_KEY not configured",
+				"error", "MINIMAX_API_KEY not configured",
+				"session_id", session.ID,
+				"operation", "ProxyAnthropicRequest",
+			)
+			c.JSON(500, gin.H{"error": "MINIMAX_API_KEY not configured"})
+			return fmt.Errorf("MINIMAX_API_KEY not configured")
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 	} else if strings.Contains(url, "openrouter.ai") || session.ProxyEnabled {
@@ -157,6 +194,13 @@ func (h *ProxyHandler) ProxyAnthropicRequest(c *gin.Context) {
 		targetURL = "https://inference.baseten.co/v1/chat/completions"
 		needsTransform = true
 		slog.Info("using Baseten proxy",
+			"session_id", sessionID,
+			"target_url", targetURL)
+	} else if os.Getenv(miniMaxAPIKeyEnvVar) != "" {
+		// If MiniMax API key is set, use the MiniMax global endpoint
+		targetURL = miniMaxGlobalBaseURL + "/chat/completions"
+		needsTransform = true
+		slog.Info("using MiniMax proxy",
 			"session_id", sessionID,
 			"target_url", targetURL)
 	} else {
