@@ -111,6 +111,11 @@ func (h *ProxyHandler) transformAnthropicToOpenAI(anthropicReq map[string]interf
 			slog.Debug("using default Baseten model",
 				"session_id", session["id"],
 				"model", "deepseek-ai/DeepSeek-V3.1")
+		} else if strings.Contains(baseURL, minimaxHostMarker) {
+			openAIReq["model"] = minimaxDefaultModel
+			slog.Debug("using default MiniMax model",
+				"session_id", session["id"],
+				"model", minimaxDefaultModel)
 		} else {
 			// Default for OpenRouter and others
 			openAIReq["model"] = "openai/gpt-oss-120b"

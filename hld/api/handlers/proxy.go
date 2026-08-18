@@ -17,6 +17,17 @@ import (
 	"github.com/humanlayer/humanlayer/hld/store"
 )
 
+const (
+	// minimaxAPIKeyEnv is the environment variable holding the MiniMax API key.
+	minimaxAPIKeyEnv = "MINIMAX_API_KEY"
+	// minimaxHostMarker matches every regional MiniMax API host.
+	minimaxHostMarker = "minimax"
+	// minimaxBaseURL is the default OpenAI-compatible MiniMax base URL.
+	minimaxBaseURL = "https://api.minimax.io/v1"
+	// minimaxDefaultModel is used when a MiniMax session has no model override.
+	minimaxDefaultModel = "MiniMax-M3"
+)
+
 type ProxyHandler struct {
 	sessionManager session.SessionManager
 	store          store.ConversationStore
@@ -60,6 +71,22 @@ func (h *ProxyHandler) setAuthHeaders(c *gin.Context, req *http.Request, url str
 			)
 			c.JSON(500, gin.H{"error": "BASETEN_API_KEY not configured"})
 			return fmt.Errorf("BASETEN_API_KEY not configured")
+		}
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	} else if strings.Contains(url, minimaxHostMarker) {
+		// MiniMax uses Bearer token - check MiniMax-specific keys first
+		apiKey := session.ProxyAPIKey
+		if apiKey == "" {
+			apiKey = os.Getenv(minimaxAPIKeyEnv)
+		}
+		if apiKey == "" {
+			slog.Error("MINIMAX_API_KEY not configured",
+				"error", "MINIMAX_API_KEY not configured",
+				"session_id", session.ID,
+				"operation", "ProxyAnthropicRequest",
+			)
+			c.JSON(500, gin.H{"error": "MINIMAX_API_KEY not configured"})
+			return fmt.Errorf("MINIMAX_API_KEY not configured")
 		}
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 	} else if strings.Contains(url, "openrouter.ai") || session.ProxyEnabled {
@@ -157,6 +184,13 @@ func (h *ProxyHandler) ProxyAnthropicRequest(c *gin.Context) {
 		targetURL = "https://inference.baseten.co/v1/chat/completions"
 		needsTransform = true
 		slog.Info("using Baseten proxy",
+			"session_id", sessionID,
+			"target_url", targetURL)
+	} else if os.Getenv(minimaxAPIKeyEnv) != "" {
+		// If MiniMax API key is set, use MiniMax
+		targetURL = minimaxBaseURL + "/chat/completions"
+		needsTransform = true
+		slog.Info("using MiniMax proxy",
 			"session_id", sessionID,
 			"target_url", targetURL)
 	} else {

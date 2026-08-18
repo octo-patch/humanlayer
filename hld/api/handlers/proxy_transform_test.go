@@ -341,3 +341,54 @@ func TestTransformOpenAIToAnthropic_TokenExtraction(t *testing.T) {
 		})
 	}
 }
+
+func TestTransformAnthropicToOpenAI_MiniMaxDefaultModel(t *testing.T) {
+	handler := &ProxyHandler{}
+
+	anthropicReq := map[string]interface{}{
+		"messages": []interface{}{
+			map[string]interface{}{
+				"role":    "user",
+				"content": "hello",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		baseURL       string
+		modelOverride string
+		expectedModel string
+	}{
+		{
+			name:          "global endpoint falls back to the default model",
+			baseURL:       "https://api.minimax.io/v1",
+			expectedModel: minimaxDefaultModel,
+		},
+		{
+			name:          "regional endpoint falls back to the default model",
+			baseURL:       "https://api.minimaxi.com/v1",
+			expectedModel: minimaxDefaultModel,
+		},
+		{
+			name:          "explicit model override is preserved",
+			baseURL:       "https://api.minimax.io/v1",
+			modelOverride: "MiniMax-M2.7",
+			expectedModel: "MiniMax-M2.7",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			session := map[string]interface{}{
+				"id":                   "test-session",
+				"proxy_enabled":        true,
+				"proxy_base_url":       tc.baseURL,
+				"proxy_model_override": tc.modelOverride,
+			}
+
+			result := handler.transformAnthropicToOpenAI(anthropicReq, session)
+			assert.Equal(t, tc.expectedModel, result["model"])
+		})
+	}
+}

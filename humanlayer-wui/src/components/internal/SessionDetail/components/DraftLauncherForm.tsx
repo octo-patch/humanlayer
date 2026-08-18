@@ -22,6 +22,7 @@ import { DangerouslySkipPermissionsDialog } from '../DangerouslySkipPermissionsD
 import { DiscardDraftDialog } from './DiscardDraftDialog'
 import { CreateDirectoryDialog } from './CreateDirectoryDialog'
 import { DraftLauncherInput } from './DraftLauncherInput'
+import { MINIMAX_BASE_URL, MINIMAX_DEFAULT_MODEL, isMiniMaxBaseUrl } from '@/lib/providers/minimax'
 
 interface DraftLauncherFormProps {
   session: Session | null
@@ -90,11 +91,13 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [proxyModelOverride, setProxyModelOverride] = useState<string | null>(
     session?.proxyModelOverride ?? null,
   )
-  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter'>(
+  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter' | 'minimax'>(
     session?.proxyBaseUrl
       ? session?.proxyBaseUrl?.includes('baseten.co')
         ? 'baseten'
-        : 'openrouter'
+        : isMiniMaxBaseUrl(session?.proxyBaseUrl)
+          ? 'minimax'
+          : 'openrouter'
       : 'anthropic',
   )
 
@@ -176,6 +179,12 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setProxyEnabled(true)
         setProxyBaseUrl(lastUsedProxyBaseUrl || 'https://inference.baseten.co/v1')
         setProxyModelOverride(lastUsedProxyModel || '')
+      } else if (lastUsedProvider === 'minimax') {
+        setModel('')
+        setProvider('minimax')
+        setProxyEnabled(true)
+        setProxyBaseUrl(lastUsedProxyBaseUrl || MINIMAX_BASE_URL)
+        setProxyModelOverride(lastUsedProxyModel || MINIMAX_DEFAULT_MODEL)
       }
     }
   }, [
@@ -398,7 +407,7 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       proxyEnabled: boolean
       proxyBaseUrl?: string
       proxyModelOverride?: string
-      provider: 'anthropic' | 'openrouter' | 'baseten'
+      provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
     }) => {
       // Update local state with new configuration
       setModel(config.model || '')
@@ -423,6 +432,11 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setLastUsedModel('')
         setLastUsedProxyModel(config.proxyModelOverride || '')
         setLastUsedProxyBaseUrl('https://inference.baseten.co/v1')
+      } else if (config.provider === 'minimax') {
+        setLastUsedProvider('minimax')
+        setLastUsedModel('')
+        setLastUsedProxyModel(config.proxyModelOverride || MINIMAX_DEFAULT_MODEL)
+        setLastUsedProxyBaseUrl(MINIMAX_BASE_URL)
       }
 
       if (onSessionUpdated) {
@@ -497,6 +511,14 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           }
         }
 
+        // If using MiniMax, include the API key from localStorage
+        if (proxyEnabled && isMiniMaxBaseUrl(proxyBaseUrl)) {
+          const minimaxApiKey = localStorage.getItem('humanlayer-minimax-api-key')
+          if (minimaxApiKey) {
+            updatePayload.proxyApiKey = minimaxApiKey
+          }
+        }
+
         // Apply the settings to the draft session before launching
         await daemonClient.updateSession(sessionId, updatePayload)
 
@@ -509,7 +531,9 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           provider: proxyEnabled
             ? proxyBaseUrl?.includes('baseten')
               ? 'baseten'
-              : 'openrouter'
+              : isMiniMaxBaseUrl(proxyBaseUrl)
+                ? 'minimax'
+                : 'openrouter'
             : 'anthropic',
           from_draft: true,
         })
