@@ -34,7 +34,7 @@ export type HealthCheckResponse = HealthResponse
 export interface LaunchSessionParams {
   query: string
   title?: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   workingDir?: string
   mcpConfig?: any
@@ -204,7 +204,7 @@ export enum ViewMode {
 export interface LaunchSessionRequest {
   query: string
   title?: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   mcp_config?: any
   permission_prompt_tool?: string

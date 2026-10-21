@@ -15,6 +15,7 @@ import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { useRecentPaths } from '@/hooks/useRecentPaths'
 import { daemonClient } from '@/lib/daemon'
+import { isMiniMaxBaseUrl, MINIMAX_BASE_URL, MINIMAX_MODELS } from '@/lib/minimax'
 import { type Session, ViewMode } from '@/lib/daemon/types'
 import { logger } from '@/lib/logging'
 import { formatError } from '@/utils/errors'
@@ -90,12 +91,14 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [proxyModelOverride, setProxyModelOverride] = useState<string | null>(
     session?.proxyModelOverride ?? null,
   )
-  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter'>(
-    session?.proxyBaseUrl
-      ? session?.proxyBaseUrl?.includes('baseten.co')
-        ? 'baseten'
-        : 'openrouter'
-      : 'anthropic',
+  const [, setProvider] = useState<'anthropic' | 'baseten' | 'openrouter' | 'minimax'>(
+    isMiniMaxBaseUrl(session?.proxyBaseUrl)
+      ? 'minimax'
+      : session?.proxyBaseUrl
+        ? session.proxyBaseUrl.includes('baseten.co')
+          ? 'baseten'
+          : 'openrouter'
+        : 'anthropic',
   )
 
   // UI State
@@ -169,6 +172,12 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setProxyEnabled(true)
         setProxyBaseUrl(lastUsedProxyBaseUrl)
         setProxyModelOverride(lastUsedProxyModel)
+      } else if (lastUsedProvider === 'minimax') {
+        setModel('')
+        setProvider('minimax')
+        setProxyEnabled(true)
+        setProxyBaseUrl(lastUsedProxyBaseUrl || MINIMAX_BASE_URL)
+        setProxyModelOverride(lastUsedProxyModel || MINIMAX_MODELS[0])
       } else if (lastUsedProvider === 'baseten') {
         // Don't require lastUsedProxyModel - it could be empty
         setModel('')
@@ -398,7 +407,7 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       proxyEnabled: boolean
       proxyBaseUrl?: string
       proxyModelOverride?: string
-      provider: 'anthropic' | 'openrouter' | 'baseten'
+      provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
     }) => {
       // Update local state with new configuration
       setModel(config.model || '')
@@ -418,6 +427,11 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         setLastUsedModel('')
         setLastUsedProxyModel(config.proxyModelOverride || '')
         setLastUsedProxyBaseUrl('https://openrouter.ai/api/v1')
+      } else if (config.provider === 'minimax') {
+        setLastUsedProvider('minimax')
+        setLastUsedModel('')
+        setLastUsedProxyModel(config.proxyModelOverride || MINIMAX_MODELS[0])
+        setLastUsedProxyBaseUrl(config.proxyBaseUrl || MINIMAX_BASE_URL)
       } else if (config.provider === 'baseten') {
         setLastUsedProvider('baseten')
         setLastUsedModel('')
@@ -497,6 +511,11 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
           }
         }
 
+        if (proxyEnabled && isMiniMaxBaseUrl(proxyBaseUrl)) {
+          const miniMaxApiKey = localStorage.getItem('humanlayer-minimax-api-key')
+          if (miniMaxApiKey) updatePayload.proxyApiKey = miniMaxApiKey
+        }
+
         // Apply the settings to the draft session before launching
         await daemonClient.updateSession(sessionId, updatePayload)
 
@@ -507,9 +526,11 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
         trackEvent(POSTHOG_EVENTS.SESSION_CREATED, {
           model: model || proxyModelOverride || undefined,
           provider: proxyEnabled
-            ? proxyBaseUrl?.includes('baseten')
-              ? 'baseten'
-              : 'openrouter'
+            ? isMiniMaxBaseUrl(proxyBaseUrl)
+              ? 'minimax'
+              : proxyBaseUrl?.includes('baseten')
+                ? 'baseten'
+                : 'openrouter'
             : 'anthropic',
           from_draft: true,
         })

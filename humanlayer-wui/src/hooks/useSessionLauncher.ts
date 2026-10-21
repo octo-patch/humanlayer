@@ -9,15 +9,17 @@ import { useStore } from '@/AppStore'
 import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { usePostHogTracking } from '@/hooks/usePostHogTracking'
 import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
+import { MINIMAX_BASE_URL, MINIMAX_MODELS } from '@/lib/minimax'
 
 interface SessionConfig {
   title?: string
   workingDir: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   maxTurns?: number
   openRouterApiKey?: string
   basetenApiKey?: string
+  miniMaxApiKey?: string
   additionalDirectories?: string[]
 }
 
@@ -56,24 +58,30 @@ const PROVIDER_KEY = 'humanlayer-provider'
 const MODEL_KEY = 'humanlayer-model'
 const OPENROUTER_MODEL_KEY = 'humanlayer-openrouter-model'
 const BASETEN_MODEL_KEY = 'humanlayer-baseten-model'
+const MINIMAX_API_KEY = 'humanlayer-minimax-api-key'
+const MINIMAX_MODEL_KEY = 'humanlayer-minimax-model'
 
 // Helper function to get saved provider
-const getSavedProvider = (): 'anthropic' | 'openrouter' | 'baseten' => {
+const getSavedProvider = (): 'anthropic' | 'openrouter' | 'baseten' | 'minimax' => {
   const stored = localStorage.getItem(PROVIDER_KEY)
-  if (stored === 'openrouter' || stored === 'baseten') {
+  if (stored === 'openrouter' || stored === 'baseten' || stored === 'minimax') {
     return stored
   }
   return 'anthropic' // Default to Anthropic
 }
 
 // Helper function to get saved model based on provider
-const getSavedModel = (provider: 'anthropic' | 'openrouter' | 'baseten'): string | undefined => {
+const getSavedModel = (
+  provider: 'anthropic' | 'openrouter' | 'baseten' | 'minimax',
+): string | undefined => {
   if (provider === 'anthropic') {
     return localStorage.getItem(MODEL_KEY) || undefined
   } else if (provider === 'openrouter') {
     return localStorage.getItem(OPENROUTER_MODEL_KEY) || undefined
   } else if (provider === 'baseten') {
     return localStorage.getItem(BASETEN_MODEL_KEY) || undefined
+  } else if (provider === 'minimax') {
+    return localStorage.getItem(MINIMAX_MODEL_KEY) || undefined
   }
   return undefined
 }
@@ -84,6 +92,7 @@ export const clearSavedModelPreferences = (): void => {
   localStorage.removeItem(MODEL_KEY)
   localStorage.removeItem(OPENROUTER_MODEL_KEY)
   localStorage.removeItem(BASETEN_MODEL_KEY)
+  localStorage.removeItem(MINIMAX_MODEL_KEY)
 }
 
 // Export localStorage key helpers (used by other components)
@@ -194,7 +203,9 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
             ? OPENROUTER_MODEL_KEY
             : config.provider === 'baseten'
               ? BASETEN_MODEL_KEY
-              : null
+              : config.provider === 'minimax'
+                ? MINIMAX_MODEL_KEY
+                : null
 
       if (modelKey) {
         if (config.model) {
@@ -203,6 +214,10 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
           localStorage.removeItem(modelKey)
         }
       }
+    }
+
+    if (config.miniMaxApiKey !== undefined) {
+      localStorage.setItem(MINIMAX_API_KEY, config.miniMaxApiKey)
     }
 
     // Save or remove OpenRouter API key from localStorage
@@ -315,6 +330,15 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
         max_turns: config.maxTurns || undefined,
         // MCP config is now injected by daemon
         permission_prompt_tool: 'mcp__codelayer__request_permission',
+        ...(config.provider === 'minimax'
+          ? {
+              model: undefined,
+              proxy_enabled: true,
+              proxy_base_url: MINIMAX_BASE_URL,
+              proxy_model_override: config.model || MINIMAX_MODELS[0],
+              proxy_api_key: config.miniMaxApiKey || localStorage.getItem(MINIMAX_API_KEY) || undefined,
+            }
+          : {}),
         // Add OpenRouter proxy configuration if provider is openrouter
         ...(config.provider === 'openrouter' && config.openRouterApiKey
           ? {

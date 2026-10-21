@@ -12,17 +12,19 @@ import { ProviderApiKeyField } from './ProviderApiKeyField'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { daemonClient } from '@/lib/daemon'
 import { ConfigStatus } from '@/lib/daemon/types'
+import { MINIMAX_MODELS } from '@/lib/minimax'
 import { useStore } from '@/AppStore'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
 
 interface SessionConfig {
   title?: string
   workingDir: string
-  provider?: 'anthropic' | 'openrouter' | 'baseten'
+  provider?: 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
   model?: string
   maxTurns?: number
   openRouterApiKey?: string
   basetenApiKey?: string
+  miniMaxApiKey?: string
   additionalDirectories?: string[]
 }
 
@@ -146,7 +148,7 @@ export default function CommandInput({
             <Select
               value={config.provider || 'anthropic'}
               onValueChange={value => {
-                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten'
+                const newProvider = value as 'anthropic' | 'openrouter' | 'baseten' | 'minimax'
 
                 // Get the saved model for this provider
                 let savedModel: string | undefined
@@ -156,6 +158,8 @@ export default function CommandInput({
                   savedModel = localStorage.getItem('humanlayer-openrouter-model') || undefined
                 } else if (newProvider === 'baseten') {
                   savedModel = localStorage.getItem('humanlayer-baseten-model') || undefined
+                } else if (newProvider === 'minimax') {
+                  savedModel = localStorage.getItem('humanlayer-minimax-model') || MINIMAX_MODELS[0]
                 }
 
                 updateConfig({
@@ -172,6 +176,7 @@ export default function CommandInput({
                 <SelectItem value="anthropic">Anthropic</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
                 <SelectItem value="baseten">Baseten</SelectItem>
+                <SelectItem value="minimax">MiniMax</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -180,7 +185,27 @@ export default function CommandInput({
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Model</label>
 
-            {config.provider === 'openrouter' ? (
+            {config.provider === 'minimax' ? (
+              <Select
+                value={config.model || MINIMAX_MODELS[0]}
+                onValueChange={model => updateConfig({ model })}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MINIMAX_MODELS.map(modelId => (
+                    <SelectItem key={modelId} value={modelId}>
+                      {modelId}
+                    </SelectItem>
+                  ))}
+                  {config.model && !MINIMAX_MODELS.some(modelId => modelId === config.model) && (
+                    <SelectItem value={config.model}>{config.model} (saved)</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            ) : config.provider === 'openrouter' ? (
               // Text input for OpenRouter models
               <Input
                 type="text"
@@ -232,6 +257,20 @@ export default function CommandInput({
               <SelectItem value="opus">Opus</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      )}
+
+      {config.provider === 'minimax' && (
+        <div className="space-y-2">
+          <Label htmlFor="minimax-api-key">MiniMax API key</Label>
+          <Input
+            id="minimax-api-key"
+            type="password"
+            value={config.miniMaxApiKey ?? localStorage.getItem('humanlayer-minimax-api-key') ?? ''}
+            onChange={e => updateConfig({ miniMaxApiKey: e.target.value })}
+            placeholder="Use MINIMAX_API_KEY when empty"
+            disabled={isLoading}
+          />
         </div>
       )}
 

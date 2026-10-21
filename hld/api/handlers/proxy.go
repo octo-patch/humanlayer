@@ -33,7 +33,18 @@ func NewProxyHandler(sessionManager session.SessionManager, store store.Conversa
 
 // setAuthHeaders sets the appropriate authentication headers based on the target URL and session
 func (h *ProxyHandler) setAuthHeaders(c *gin.Context, req *http.Request, url string, session *store.Session) error {
-	if strings.Contains(url, "api.anthropic.com") {
+	if isMiniMaxAnthropicURL(url) {
+		apiKey := session.ProxyAPIKey
+		if apiKey == "" {
+			apiKey = os.Getenv("MINIMAX_API_KEY")
+		}
+		if apiKey == "" {
+			c.JSON(500, gin.H{"error": "MiniMax API key is required"})
+			return fmt.Errorf("MiniMax API key is required")
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+		req.Header.Set("anthropic-version", c.GetHeader("anthropic-version"))
+	} else if strings.Contains(url, "api.anthropic.com") {
 		req.Header.Set("anthropic-version", c.GetHeader("anthropic-version"))
 		apiKey := os.Getenv("ANTHROPIC_API_KEY")
 		if apiKey == "" {
@@ -135,7 +146,13 @@ func (h *ProxyHandler) ProxyAnthropicRequest(c *gin.Context) {
 	var needsTransform bool
 
 	// Check session proxy configuration
-	if session.ProxyEnabled && session.ProxyBaseURL != "" {
+	miniMax := session.ProxyEnabled && isMiniMaxAnthropicURL(session.ProxyBaseURL)
+	if miniMax {
+		baseURL := strings.TrimSuffix(strings.TrimRight(session.ProxyBaseURL, "/"), "/v1/messages")
+		baseURL = strings.TrimSuffix(baseURL, "/v1")
+		targetURL = baseURL + "/v1/messages"
+		prepareMiniMaxRequest(requestBody, session.ProxyModelOverride)
+	} else if session.ProxyEnabled && session.ProxyBaseURL != "" {
 		// Use configured proxy (e.g., custom proxy server)
 		// Handle both formats: with or without /v1 suffix
 		baseURL := strings.TrimSuffix(session.ProxyBaseURL, "/v1")
@@ -188,7 +205,7 @@ func (h *ProxyHandler) ProxyAnthropicRequest(c *gin.Context) {
 
 	// Marshal back to bytes for forwarding
 	forwardBytes := bodyBytes
-	if needsTransform {
+	if needsTransform || miniMax {
 		forwardBytes, _ = json.Marshal(requestBody)
 	}
 
