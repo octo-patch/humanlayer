@@ -1,2 +1,2 @@
 export type { ModelAlias } from './models'
-export { resolveModel } from './models'
+export { resolveMiniMaxModel, resolveModel } from './models'

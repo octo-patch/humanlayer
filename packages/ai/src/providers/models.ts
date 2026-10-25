@@ -1,4 +1,4 @@
-import { anthropic } from '@ai-sdk/anthropic'
+import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
 import { openai } from '@ai-sdk/openai'
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import * as Sentry from '@sentry/core'
@@ -7,6 +7,20 @@ import { logger } from '../logger'
 import { createReliableLanguageModel } from '../reliable-language-model'
 
 export type ModelAlias = 'sonnet' | 'haiku'
+
+/**
+ * MiniMax exposes an Anthropic-compatible Messages endpoint. Keep this
+ * provider opt-in so existing Anthropic callers retain their current
+ * credentials and routing, while consumers that configure MINIMAX_API_KEY
+ * can use the current Flash-first model pair.
+ */
+const minimax = createAnthropic({
+	apiKey: process.env.MINIMAX_API_KEY,
+	baseURL: process.env.MINIMAX_ANTHROPIC_BASE_URL ?? 'https://api.minimax.io/anthropic',
+})
+
+const MINIMAX_PRIMARY = minimax('MiniMax-M3.1-Flash')
+const MINIMAX_SECONDARY = minimax('MiniMax-M3')
 
 const PRIMARY: Record<ModelAlias, LanguageModelV3> = {
 	sonnet: anthropic('claude-sonnet-5'),
@@ -75,5 +89,13 @@ export function resolveModel(alias: ModelAlias): LanguageModelV3 {
 				},
 			})
 		},
+	})
+}
+
+/** Resolve the Flash-first MiniMax pair over the native Anthropic protocol. */
+export function resolveMiniMaxModel(): LanguageModelV3 {
+	return createReliableLanguageModel({
+		primary: MINIMAX_PRIMARY,
+		secondary: MINIMAX_SECONDARY,
 	})
 }
